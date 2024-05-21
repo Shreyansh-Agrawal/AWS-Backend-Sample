@@ -1,0 +1,70 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  AWS-Backend
+  Sample SAM Template for AWS-Backend
+
+Resources:
+
+  ApiGateway:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: prod
+      DefinitionBody:
+        "Fn::Transform":
+          Name: "AWS::Include"
+          Parameters:
+            Location: swagger.yaml
+
+  # defining lambda layer
+  MyLambdaLayer:
+    Type: AWS::Serverless::LayerVersion
+    Properties:
+      LayerName: layers-lambda
+      Description: Layers for common code and libs
+      ContentUri: src/layer
+      CompatibleRuntimes:
+        - python3.11
+    Metadata:
+      BuildMethod: python3.11 # without this layer is not created
+
+  DynamoDBTable: 
+    Type: AWS::DynamoDB::Table
+    Properties: 
+      AttributeDefinitions: 
+        - 
+          AttributeName: "Partition Key"
+          AttributeType: "S"
+        - 
+          AttributeName: "Sort Key"
+          AttributeType: "S"
+      KeySchema: 
+        - 
+          AttributeName: "Partition Key"
+          KeyType: "HASH"
+        - 
+          AttributeName: "Sort Key"
+          KeyType: "RANGE"
+      ProvisionedThroughput: 
+        ReadCapacityUnits: 2
+        WriteCapacityUnits: 2
+      TableClass: STANDARD
+      TableName: "MyDBTable"
+
+  # a lambda function
+  GetAllDrivesFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/drive/get_all_drives
+      Handler: app.get_all_drives
+      Runtime: python3.11
+      FunctionName: MyGetAllDrivesFunction
+      Layers:
+      - Ref: MyLambdaLayer
+      Events:
+        GetDrivesApi:
+          Type: Api
+          Properties:
+            Path: /drives
+            Method: get
+            RestApiId: !Ref ApiGateway
